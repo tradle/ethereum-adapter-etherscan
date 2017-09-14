@@ -1,0 +1,22 @@
+{
+  "name": "@tradle/ethereum-adapter-etherscan",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test",
+    "lint": "eslint --quiet --ignore-path .gitignore ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "co": "^4.6.0",
+    "etherscan-api": "github:mvayngrib/etherscan-api"
+  },
+  "devDependencies": {
+    "eslint": "^4.6.1",
+    "pify": "^3.0.0",
+    "tape": "^4.8.0"
+  }
+}

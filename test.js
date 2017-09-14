@@ -19,7 +19,18 @@ const luckyTx = {
 }
 
 test('basic', co(function* (t) {
-  const { blockchain } = createAdapter(networkName)
+  const { blockchain, network } = createAdapter(networkName)
+  t.equal(network.blockchain, 'ethereum')
+  t.equal(network.name, 'ropsten')
+  t.same(network.constants, { chainId: 3 })
+
+  const key = network.generateKey()
+  t.equal(key.pub.length, 64)
+
+  const pub = new Buffer('000b58d7f8429956219316ded850b365c11f414111ce7ecc28395813ba0a8bc90f3144a4da8754cddb383eddc67b32002aec851f72e02c7421abd5c8dcd3c1c1', 'hex')
+  const addr = network.pubKeyToAddress(pub)
+  t.equal(addr, '002be406c70dbc7220397ffa6f63a67372cd933c')
+
   const info = yield promisify(blockchain.info)()
   t.ok(typeof info.blockHeight === 'number')
 

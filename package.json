@@ -12,6 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "co": "^4.6.0",
+    "ethereumjs-wallet": "^0.6.0",
     "etherscan-api": "github:mvayngrib/etherscan-api"
   },
   "devDependencies": {

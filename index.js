@@ -2,17 +2,56 @@
 const { EventEmitter } = require('events')
 const co = require('co').wrap
 const EtherScan = require('etherscan-api')
+const Wallet = require('ethereumjs-wallet')
 const networks = require('./networks')
 const MAX_CONCURRENT_REQUESTS = 3
 
-module.exports = createNetwork
+module.exports = createNetworkAdapter
 
 function noopCallback (cb) {
   process.nextTick(cb)
 }
 
+function pubKeyToAddress (pub) {
+  if (pub.length === 65) pub = pub.slice(1)
+
+  const prefixed = Wallet.fromPublicKey(pub).getAddressString()
+  return unprefixHex(prefixed)
+}
+
+function generateKey () {
+  const key = Wallet.generate(true)
+  const exported = {}
+
+  // lazy
+  Object.defineProperty(exported, 'pub', {
+    get: function () {
+      return key.pubKey
+    }
+  })
+
+  Object.defineProperty(exported, 'priv', {
+    get: function () {
+      return key.privKey
+    }
+  })
+
+  return exported
+}
+
 function createNetwork (networkName) {
-  const network = networks[networkName]
+  return {
+    blockchain: 'ethereum',
+    name: networkName,
+    minOutputAmount: 1,
+    constants: networks[networkName],
+    pubKeyToAddress,
+    generateKey
+  }
+}
+
+function createNetworkAdapter (networkName) {
+  const network = createNetwork(networkName)
   const etherscan = EtherScan.init(networkName)
   const wrapEtherScanMethod = fn => (...args) => exec(fn(...args))
 

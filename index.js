@@ -50,9 +50,9 @@ function createNetwork (networkName) {
   }
 }
 
-function createNetworkAdapter (networkName) {
+function createNetworkAdapter ({ networkName, apiKey }) {
   const network = createNetwork(networkName)
-  const etherscan = EtherScan.init(networkName)
+  const etherscan = EtherScan.init(apiKey, networkName)
   const wrapEtherScanMethod = fn => (...args) => exec(fn(...args))
 
   let blockHeight

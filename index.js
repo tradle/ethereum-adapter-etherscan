@@ -9,7 +9,9 @@ const MAX_CONCURRENT_REQUESTS = 3
 module.exports = createNetworkAdapter
 
 function noopCallback (cb) {
-  process.nextTick(cb)
+  if (cb) {
+    process.nextTick(cb)
+  }
 }
 
 function pubKeyToAddress (pub) {

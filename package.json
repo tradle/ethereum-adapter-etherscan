@@ -13,7 +13,8 @@
   "dependencies": {
     "co": "^4.6.0",
     "ethereumjs-wallet": "^0.6.0",
-    "etherscan-api": "github:mvayngrib/etherscan-api"
+    "etherscan-api": "github:mvayngrib/etherscan-api",
+    "settle-promise": "^1.0.0"
   },
   "devDependencies": {
     "eslint": "^4.6.1",

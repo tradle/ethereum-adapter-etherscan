@@ -1,6 +1,7 @@
 
 const { EventEmitter } = require('events')
 const co = require('co').wrap
+const { settle } = require('settle-promise')
 const EtherScan = require('etherscan-api')
 const Wallet = require('ethereumjs-wallet')
 const networks = require('./networks')
@@ -42,6 +43,10 @@ function generateKey () {
 }
 
 function createNetwork (networkName) {
+  if (!networks[networkName]) {
+    throw new Error(`unsupported network: ${networkName}`)
+  }
+
   return {
     blockchain: 'ethereum',
     name: networkName,
@@ -177,8 +182,12 @@ const promiseMapLimit = co(function* ({ items, worker, concurrency=Infinity }) {
 
   let results = []
   for (const batch of batches) {
-    const batchResult = yield batch.map(item => worker(item))
-    results = results.concat(batchResult)
+    const batchResult = yield settle(batch.map(item => worker(item)))
+    const successes = batchResult
+      .filter(({ isFulfilled }) => isFulfilled)
+      .map(({ value }) => value)
+
+    results = results.concat(successes)
   }
 
   return results
@@ -227,6 +236,7 @@ function exec (req) {
 }
 
 function flattenArray (arr) {
+  debugger
   return arr.reduce((flat, more) => {
     return flat.concat(more)
   }, [])

@@ -236,7 +236,6 @@ function exec (req) {
 }
 
 function flattenArray (arr) {
-  debugger
   return arr.reduce((flat, more) => {
     return flat.concat(more)
   }, [])

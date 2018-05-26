@@ -55,6 +55,7 @@ function createNetwork ({ networkName, apiKey }) {
   const network = {
     blockchain: 'ethereum',
     name: networkName,
+    curve: 'secp256k1',
     minOutputAmount: 1,
     constants: networks[networkName],
     pubKeyToAddress,

@@ -60,7 +60,7 @@ function createNetwork ({ networkName, apiKey }) {
     constants: networks[networkName],
     pubKeyToAddress,
     generateKey,
-    createBlockchainAPI: createBlockchainAPI,
+    createBlockchainAPI,
     get api () {
       if (!api) {
         api = createBlockchainAPI({ network, apiKey })
@@ -176,10 +176,7 @@ function createBlockchainAPI ({ network, networkName, apiKey }) {
     }
   }
 
-  return {
-    network,
-    blockchain
-  }
+  return blockchain
 }
 
 function nodeify (promiser) {

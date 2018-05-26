@@ -7,7 +7,11 @@ const Wallet = require('ethereumjs-wallet')
 const networks = require('./networks')
 const MAX_CONCURRENT_REQUESTS = 3
 
-module.exports = createNetworkAdapter
+module.exports = {
+  networks,
+  createNetwork,
+  createBlockchainAPI
+}
 
 function noopCallback (cb) {
   if (cb) {
@@ -42,11 +46,12 @@ function generateKey () {
   return exported
 }
 
-function createNetwork (networkName) {
+function createNetwork ({ networkName, apiKey }) {
   if (!networks[networkName]) {
     throw new Error(`unsupported network: ${networkName}`)
   }
 
+  let api
   const network = {
     blockchain: 'ethereum',
     name: networkName,
@@ -54,13 +59,20 @@ function createNetwork (networkName) {
     constants: networks[networkName],
     pubKeyToAddress,
     generateKey,
-    createBlockchainAPI: createNetworkAdapter
+    createBlockchainAPI: createBlockchainAPI,
+    get api () {
+      if (!api) {
+        api = createBlockchainAPI({ network, apiKey })
+      }
+
+      return api
+    }
   }
 
   return network
 }
 
-function createNetworkAdapter ({ network, networkName, apiKey }) {
+function createBlockchainAPI ({ network, networkName, apiKey }) {
   if (!network) network = createNetwork(networkName)
 
   const etherscan = EtherScan.init(apiKey, networkName)

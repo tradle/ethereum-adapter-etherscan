@@ -47,18 +47,22 @@ function createNetwork (networkName) {
     throw new Error(`unsupported network: ${networkName}`)
   }
 
-  return {
+  const network = {
     blockchain: 'ethereum',
     name: networkName,
     minOutputAmount: 1,
     constants: networks[networkName],
     pubKeyToAddress,
-    generateKey
+    generateKey,
+    createBlockchainAPI: createNetworkAdapter
   }
+
+  return network
 }
 
-function createNetworkAdapter ({ networkName, apiKey }) {
-  const network = createNetwork(networkName)
+function createNetworkAdapter ({ network, networkName, apiKey }) {
+  if (!network) network = createNetwork(networkName)
+
   const etherscan = EtherScan.init(apiKey, networkName)
   const wrapEtherScanMethod = fn => (...args) => exec(fn(...args))
 
@@ -92,6 +96,7 @@ function createNetworkAdapter ({ networkName, apiKey }) {
   }
 
   const blockchain = {
+    network,
     close: noopCallback,
     info: awaitReady(info),
     blocks: {

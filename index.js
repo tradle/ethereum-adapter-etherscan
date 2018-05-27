@@ -76,20 +76,19 @@ function createNetwork ({ networkName, apiKey }) {
 function createBlockchainAPI ({ network, networkName, apiKey }) {
   if (!network) network = createNetwork(networkName)
 
+  networkName = network.name
   const etherscan = EtherScan.init(apiKey, networkName)
   const wrapEtherScanMethod = fn => (...args) => exec(fn(...args))
 
   let blockHeight
   const _getLatestBlock = wrapEtherScanMethod(etherscan.proxy.eth_blockNumber)
-  const getLatestBlock = () => {
-    return _getLatestBlock()
-      .then(({ result }) => ({
-        blockHeight: unhexint(result)
-      }))
-  }
+  const getLatestBlock = () => _getLatestBlock().then(({ result }) => ({
+    blockHeight: unhexint(result)
+  }))
 
-  const promiseInit = getLatestBlock()
-    .then(blockNumber => blockHeight = blockNumber)
+  const promiseInit = getLatestBlock().then(result => {
+    blockHeight = result.blockHeight
+  })
 
   const awaitReady = fn => nodeify(co(function* (...args) {
     yield promiseInit
@@ -103,10 +102,8 @@ function createBlockchainAPI ({ network, networkName, apiKey }) {
   }
 
   const _getTx = wrapEtherScanMethod(etherscan.proxy.eth_getTransactionByHash)
-  const getTx = hash => {
-    return _getTx(prefixHex(hash))
-      .then(({ result }) => normalizeTxInfo(result))
-  }
+  const getTx = hash => _getTx(prefixHex(hash))
+    .then(({ result }) => normalizeTxInfo(result))
 
   const blockchain = {
     network,
@@ -158,15 +155,19 @@ function createBlockchainAPI ({ network, networkName, apiKey }) {
   }
 
   function normalizeTxInfo (txInfo) {
-    const height = Number(txInfo.blockNumber)
-    if (!isNaN(txInfo.blockHeight)) {
+    const height = toNumber(txInfo.blockNumber)
+    let confirmations
+    if (isNaN(height)) {
+      debugger
+    } else {
       blockHeight = Math.max(blockHeight, height)
+      confirmations = blockHeight - height
     }
 
     return {
       blockHeight,
       txId: unprefixHex(txInfo.hash),
-      confirmations: Number(txInfo.confirmations),
+      confirmations,
       from: {
         addresses: [txInfo.from].map(unprefixHex)
       },
@@ -255,4 +256,11 @@ function flattenArray (arr) {
   return arr.reduce((flat, more) => {
     return flat.concat(more)
   }, [])
+}
+
+function toNumber (n) {
+  if (typeof n === 'number') return n
+  if (n.startsWith('0x')) return unhexint(n)
+
+  return isNaN(n) ? null : parseInt(n, 10)
 }

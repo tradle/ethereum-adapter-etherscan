@@ -1,52 +1,39 @@
 
-const { EventEmitter } = require('events')
-const co = require('co').wrap
 const { settle } = require('settle-promise')
 const EtherScan = require('etherscan-api')
 const Wallet = require('ethereumjs-wallet')
+const mem = require('mem')
 const networks = require('./networks')
 const MAX_CONCURRENT_REQUESTS = 3
 
-module.exports = {
-  networks,
-  createNetwork,
-  createBlockchainAPI
+const noopCallback = (cb) => {
+  if (cb) process.nextTick(cb)
 }
 
-function noopCallback (cb) {
-  if (cb) {
-    process.nextTick(cb)
-  }
-}
-
-function pubKeyToAddress (pub) {
+const pubKeyToAddress = (pub) => {
   if (pub.length === 65) pub = pub.slice(1)
 
   const prefixed = Wallet.fromPublicKey(pub).getAddressString()
   return unprefixHex(prefixed)
 }
 
-function generateKey () {
+const generateKey = () => {
   const key = Wallet.generate(true)
   const exported = {}
 
   // lazy
   Object.defineProperty(exported, 'pub', {
-    get: function () {
-      return key.pubKey
-    }
+    get: () => key.pubKey
   })
 
   Object.defineProperty(exported, 'priv', {
-    get: function () {
-      return key.privKey
-    }
+    get: () => key.privKey
   })
 
   return exported
 }
 
-function createNetwork ({ networkName, apiKey }) {
+const createNetwork = ({ networkName, apiKey }) => {
   if (!networks[networkName]) {
     throw new Error(`unsupported network: ${networkName}`)
   }
@@ -73,7 +60,7 @@ function createNetwork ({ networkName, apiKey }) {
   return network
 }
 
-function createBlockchainAPI ({ network, networkName, apiKey }) {
+const createBlockchainAPI = ({ network, networkName, apiKey }) => {
   if (!network) network = createNetwork(networkName)
 
   networkName = network.name
@@ -86,43 +73,36 @@ function createBlockchainAPI ({ network, networkName, apiKey }) {
     blockHeight: unhexint(result)
   }))
 
-  const promiseInit = getLatestBlock().then(result => {
-    blockHeight = result.blockHeight
-  })
+  const _init = async () => {
+    if (blockHeight) return
+    const result = await getLatestBlock()
+    if (!blockHeight) blockHeight = result.blockHeight
+  }
 
-  const awaitReady = fn => nodeify(co(function* (...args) {
-    yield promiseInit
-    return yield fn(...args)
-  }))
+  const init = mem(_init)
+
+  // kick things off
+  init()
+
+  const requireReady = fn => nodeify(async (...args) => {
+    await init()
+    return await fn(...args)
+  })
 
   const info = getLatestBlock
   const _getBalance = wrapEtherScanMethod(etherscan.account.balance)
-  const getBalance = address => {
-    return _getBalance(address).then(({ result }) => result[0].balance)
+  const getBalance = async address => {
+    const { result } = await _getBalance(address)
+    return result[0].balance
   }
 
   const _getTx = wrapEtherScanMethod(etherscan.proxy.eth_getTransactionByHash)
-  const getTx = hash => _getTx(prefixHex(hash))
-    .then(({ result }) => normalizeTxInfo(result))
-
-  const blockchain = {
-    network,
-    close: noopCallback,
-    info: awaitReady(info),
-    blocks: {
-      latest: awaitReady(getLatestBlock)
-    },
-    transactions: {
-      get: awaitReady(getTxs),
-      // propagate: awaitReady(sendTx)
-    },
-    addresses: {
-      transactions: awaitReady(listTxs),
-      balance: awaitReady(getBalance)
-    }
+  const getTx = async hash => {
+    const { result } = await _getTx(prefixHex(hash))
+    return normalizeTxInfo(result)
   }
 
-  function getTxs (hashes) {
+  const getTxs = (hashes) => {
     if (!Array.isArray(hashes)) {
       throw new Error('expected array of tx hashes')
     }
@@ -136,12 +116,12 @@ function createBlockchainAPI ({ network, networkName, apiKey }) {
 
   const _listTxsForAddress = wrapEtherScanMethod(etherscan.account.txlist)
 
-  function listTxsForAddress (address) {
+  const listTxsForAddress = (address) => {
     return _listTxsForAddress(prefixHex(address))
       .then(({ result }) => result.map(normalizeTxInfo))
   }
 
-  function listTxs (addresses) {
+  const listTxs = (addresses) => {
     if (!Array.isArray(addresses)) {
       throw new Error('expected array of addresses')
     }
@@ -154,11 +134,12 @@ function createBlockchainAPI ({ network, networkName, apiKey }) {
     .then(flattenArray)
   }
 
-  function normalizeTxInfo (txInfo) {
+  const normalizeTxInfo = (txInfo) => {
     const height = toNumber(txInfo.blockNumber)
     let confirmations
     if (isNaN(height)) {
-      debugger
+      // eslint-disable-next-line no-console
+      console.warn('height is not a number!', txInfo)
     } else {
       blockHeight = Math.max(blockHeight, height)
       confirmations = blockHeight - height
@@ -178,18 +159,33 @@ function createBlockchainAPI ({ network, networkName, apiKey }) {
     }
   }
 
+  const blockchain = {
+    network,
+    close: noopCallback,
+    info: requireReady(info),
+    blocks: {
+      latest: requireReady(getLatestBlock)
+    },
+    transactions: {
+      get: requireReady(getTxs),
+      // propagate: requireReady(sendTx)
+    },
+    addresses: {
+      transactions: requireReady(listTxs),
+      balance: requireReady(getBalance)
+    }
+  }
+
   return blockchain
 }
 
-function nodeify (promiser) {
-  return function (...args) {
-    const cb = args.pop()
-    return promiser(...args)
-      .then(result => cb(null, result), cb)
-  }
+const nodeify = promiser => function (...args) {
+  const cb = args.pop()
+  return promiser(...args)
+    .then(result => cb(null, result), cb)
 }
 
-const promiseMapLimit = co(function* ({ items, worker, concurrency=Infinity }) {
+const promiseMapLimit = async ({ items, worker, concurrency=Infinity }) => {
   const batches = []
   while (items.length) {
     let batchSize = Math.min(items.length, concurrency)
@@ -199,7 +195,7 @@ const promiseMapLimit = co(function* ({ items, worker, concurrency=Infinity }) {
 
   let results = []
   for (const batch of batches) {
-    const batchResult = yield settle(batch.map(item => worker(item)))
+    const batchResult = await settle(batch.map(item => worker(item)))
     const successes = batchResult
       .filter(({ isFulfilled }) => isFulfilled)
       .map(({ value }) => value)
@@ -208,29 +204,12 @@ const promiseMapLimit = co(function* ({ items, worker, concurrency=Infinity }) {
   }
 
   return results
-})
-
-function unhexint (hex) {
-  return parseInt(unprefixHex(hex), 16)
 }
 
-function unprefixHex (hex) {
-  if (hex.startsWith('0x')) {
-    hex = hex.slice(2)
-  }
-
-  return hex
-}
-
-function prefixHex (hex) {
-  if (!hex.startsWith('0x')) {
-    hex = '0x' + hex
-  }
-
-  return hex
-}
-
-function normalizeResult (result) {
+const unhexint = hex => parseInt(unprefixHex(hex), 16)
+const unprefixHex = hex => hex.startsWith('0x') ? hex.slice(2) : hex
+const prefixHex = hex => hex.startsWith('0x') ? hex : '0x' + hex
+const normalizeResult = (result) => {
   if (result && result.error) {
     const err = result.error.message
     err.code = result.error.code
@@ -240,7 +219,7 @@ function normalizeResult (result) {
   return result
 }
 
-function normalizeError (err) {
+const normalizeError = (err) => {
   if (typeof err === 'string') {
     err = new Error(err)
   }
@@ -248,19 +227,20 @@ function normalizeError (err) {
   throw err
 }
 
-function exec (req) {
-  return req.then(normalizeResult, normalizeError)
-}
+const exec = req => req.then(normalizeResult, normalizeError)
+const flattenArray = arr => arr.reduce((flat, more) => {
+  return flat.concat(more)
+}, [])
 
-function flattenArray (arr) {
-  return arr.reduce((flat, more) => {
-    return flat.concat(more)
-  }, [])
-}
-
-function toNumber (n) {
+const toNumber = (n) => {
   if (typeof n === 'number') return n
   if (n.startsWith('0x')) return unhexint(n)
 
   return isNaN(n) ? null : parseInt(n, 10)
+}
+
+module.exports = {
+  networks,
+  createNetwork,
+  createBlockchainAPI
 }

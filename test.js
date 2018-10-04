@@ -1,25 +1,24 @@
 
 const test = require('tape')
-const co = require('co').wrap
 const promisify = require('pify')
-const createAdapter = require('./')
+const { createNetwork } = require('./')
 const networkName = 'ropsten'
 const luckyTx = {
-  "txId": "63e30001299d24c89ea7154a7a94d145c552597efa82acc92ff4d16b97bef9c3",
-  "from": {
-    "addresses": [
-      "7d42e5038444fbfa0b9d9d8c15eff1e27dc5bec6"
+  txId: '63e30001299d24c89ea7154a7a94d145c552597efa82acc92ff4d16b97bef9c3',
+  from: {
+    addresses: [
+      '7d42e5038444fbfa0b9d9d8c15eff1e27dc5bec6'
     ]
   },
-  "to": {
-    "addresses": [
-      "f4d8e706cfb25c0decbbdd4d2e2cc10c66376a3f"
+  to: {
+    addresses: [
+      'f4d8e706cfb25c0decbbdd4d2e2cc10c66376a3f'
     ]
   }
 }
 
-test('basic', co(function* (t) {
-  const { blockchain, network } = createAdapter({ networkName })
+test('basic', async (t) => {
+  const { blockchain, network } = createNetwork({ networkName })
   t.equal(network.blockchain, 'ethereum')
   t.equal(network.name, 'ropsten')
   t.same(network.constants, { chainId: 3 })
@@ -31,31 +30,31 @@ test('basic', co(function* (t) {
   const addr = network.pubKeyToAddress(pub)
   t.equal(addr, '002be406c70dbc7220397ffa6f63a67372cd933c', 'pub key => address')
 
-  const info = yield promisify(blockchain.info)()
+  const info = await promisify(blockchain.info)()
   t.ok(typeof info.blockHeight === 'number', 'got block height')
 
-  const txs = yield promisify(blockchain.transactions.get)(
+  const txs = await promisify(blockchain.transactions.get)(
     ['63e30001299d24c89ea7154a7a94d145c552597efa82acc92ff4d16b97bef9c3']
   )
 
   t.equal(txs.length, 1, 'retrieved 1 tx')
   compareTxs(txs[0], luckyTx, t)
 
-  const txsForAddr = yield promisify(blockchain.addresses.transactions)(
+  const txsForAddr = await promisify(blockchain.addresses.transactions)(
     ['f4d8e706cfb25c0decbbdd4d2e2cc10c66376a3f']
   )
 
   const match = txsForAddr.find(tx => tx.txId === luckyTx.txId)
   compareTxs(match, luckyTx, t)
 
-  const balance = yield promisify(blockchain.addresses.balance)(
+  const balance = await promisify(blockchain.addresses.balance)(
     ['f4d8e706cfb25c0decbbdd4d2e2cc10c66376a3f']
   )
 
   t.equal(typeof balance, 'string', 'balance is stringified num')
   t.notOk(isNaN(balance))
   t.end()
-}))
+})
 
 function compareTxs (a, b, t) {
   t.equal(a.txId, b.txId)

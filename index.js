@@ -2,7 +2,6 @@
 const { settle } = require('settle-promise')
 const EtherScan = require('etherscan-api')
 const Wallet = require('ethereumjs-wallet')
-const mem = require('mem')
 const networks = require('./networks')
 const MAX_CONCURRENT_REQUESTS = 3
 
@@ -58,6 +57,22 @@ const createNetwork = ({ networkName, apiKey }) => {
   }
 
   return network
+}
+
+const mem = fn => {
+  let promise
+  const memoized = () => {
+    if (!promise) {
+      promise = fn()
+      promise.catch(() => {
+        promise = null
+      })
+    }
+
+    return promise
+  }
+
+  return memoized
 }
 
 const createBlockchainAPI = ({ network, networkName, apiKey }) => {

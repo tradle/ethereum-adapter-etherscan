@@ -14,7 +14,6 @@
   "dependencies": {
     "ethereumjs-wallet": "^0.6.0",
     "etherscan-api": "github:mvayngrib/etherscan-api",
-    "mem": "^4.0.0",
     "settle-promise": "^1.0.0"
   },
   "devDependencies": {
